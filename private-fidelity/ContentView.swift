@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var exportAlertMessage: String?
     @State private var shareSheetItem: ShareSheetItem?
     @State private var allCardsFilter: AllCardsFilter = .all
+    @State private var searchText = ""
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -47,7 +48,7 @@ struct ContentView: View {
                             sectionTitle("Preferiti")
 
                             LazyVGrid(columns: gridColumns, spacing: 12) {
-                                ForEach(preferredCards) { card in
+                                ForEach(filteredPreferredCards) { card in
                                     cardTile(card, context: .favorites)
                                 }
                             }
@@ -63,7 +64,7 @@ struct ContentView: View {
 
                             if allCardsFilter == .all {
                                 LazyVGrid(columns: gridColumns, spacing: 12) {
-                                    ForEach(allCards) { card in
+                                    ForEach(filteredAllCards) { card in
                                         cardTile(card, context: .all)
                                     }
                                 }
@@ -86,34 +87,37 @@ struct ContentView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !cards.isEmpty {
-                        Button("Elimina Tutte", role: .destructive) {
-                            isShowingDeleteAllAlert = true
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 4) {
+                        Button {
+                            isPresentingAddCard = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
                         }
-                    }
-                }
 
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        isPresentingImportPicker = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.title3)
-                    }
+                        Menu {
+                            Button("Aggiungi", systemImage: "plus.circle") {
+                                isPresentingAddCard = true
+                            }
 
-                    Button {
-                        isPresentingExportPicker = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.title3)
-                    }
+                            Button("Importa", systemImage: "square.and.arrow.down") {
+                                isPresentingImportPicker = true
+                            }
 
-                    Button {
-                        isPresentingAddCard = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
+                            Button("Esporta", systemImage: "square.and.arrow.up") {
+                                isPresentingExportPicker = true
+                            }
+
+                            if !cards.isEmpty {
+                                Button("Elimina Tutte", systemImage: "trash", role: .destructive) {
+                                    isShowingDeleteAllAlert = true
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title3)
+                        }
                     }
                 }
             }
@@ -138,6 +142,11 @@ struct ContentView: View {
             .navigationDestination(item: $selectedCard) { card in
                 CardDetailView(card: card)
             }
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "Cerca negozio"
+            )
             .alert("Eliminare tutte le card?", isPresented: $isShowingDeleteAllAlert) {
                 Button("Annulla", role: .cancel) {}
                 Button("Elimina Tutte", role: .destructive) {
@@ -174,8 +183,30 @@ struct ContentView: View {
         cards.sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var filteredPreferredCards: [Item] {
+        guard !normalizedSearchText.isEmpty else {
+            return preferredCards
+        }
+        return preferredCards.filter {
+            $0.storeName.lowercased().contains(normalizedSearchText)
+        }
+    }
+
+    private var filteredAllCards: [Item] {
+        guard !normalizedSearchText.isEmpty else {
+            return allCards
+        }
+        return allCards.filter {
+            $0.storeName.lowercased().contains(normalizedSearchText)
+        }
+    }
+
     private var allCardsGroupedByTag: [TagGroup] {
-        let grouped = Dictionary(grouping: allCards) { card in
+        let grouped = Dictionary(grouping: filteredAllCards) { card in
             normalizedTag(card.tag)
         }
 
