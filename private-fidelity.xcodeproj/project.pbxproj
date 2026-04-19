@@ -11,9 +11,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		28E8A7F32F93C4A100A60212 /* fidelify */ = {
+		28E8A7F32F93C4A100A60212 /* private-fidelity */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = fidelify;
+			path = "private-fidelity";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		28E8A7E82F93C4A100A60212 = {
 			isa = PBXGroup;
 			children = (
-				28E8A7F32F93C4A100A60212 /* fidelify */,
+				28E8A7F32F93C4A100A60212 /* private-fidelity */,
 				28E8A7F22F93C4A100A60212 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -48,7 +48,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		28E8A7F02F93C4A100A60212 /* fidelify */ = {
+		28E8A7F02F93C4A100A60212 /* private-fidelity */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 28E8A7FE2F93C4A200A60212 /* Build configuration list for PBXNativeTarget "fidelify" */;
 			buildPhases = (
@@ -61,7 +61,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				28E8A7F32F93C4A100A60212 /* fidelify */,
+				28E8A7F32F93C4A100A60212 /* private-fidelity */,
 			);
 			name = fidelify;
 			packageProductDependencies = (
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 28E8A7EC2F93C4A100A60212 /* Build configuration list for PBXProject "fidelify" */;
+			buildConfigurationList = 28E8A7EC2F93C4A100A60212 /* Build configuration list for PBXProject "private-fidelity" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				28E8A7F02F93C4A100A60212 /* fidelify */,
+				28E8A7F02F93C4A100A60212 /* private-fidelity */,
 			);
 		};
 /* End PBXProject section */
@@ -255,7 +255,7 @@
 				DEVELOPMENT_TEAM = GNUVH2CDKG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "PrivateFidelity";
+				INFOPLIST_KEY_CFBundleDisplayName = PrivateFidelity;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Serve per scansionare i codici a barre delle tue card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -267,7 +267,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.adriatikberdufi.privatefidelity;
+				PRODUCT_BUNDLE_IDENTIFIER = adriatikberdufi.fidelify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -291,7 +291,7 @@
 				DEVELOPMENT_TEAM = GNUVH2CDKG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "PrivateFidelity";
+				INFOPLIST_KEY_CFBundleDisplayName = PrivateFidelity;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Serve per scansionare i codici a barre delle tue card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -303,7 +303,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.adriatikberdufi.privatefidelity;
+				PRODUCT_BUNDLE_IDENTIFIER = adriatikberdufi.fidelify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -319,7 +319,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		28E8A7EC2F93C4A100A60212 /* Build configuration list for PBXProject "fidelify" */ = {
+		28E8A7EC2F93C4A100A60212 /* Build configuration list for PBXProject "private-fidelity" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				28E8A7FC2F93C4A200A60212 /* Debug */,
