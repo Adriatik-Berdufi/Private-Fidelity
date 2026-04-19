@@ -1149,6 +1149,7 @@ private struct AddCardView: View {
     @State private var selectedColorID = ""
     @State private var isShowingScanner = false
     @State private var scannerErrorMessage: String?
+    @State private var isShowingDuplicateAlert = false
 
     var body: some View {
         NavigationStack {
@@ -1236,7 +1237,11 @@ private struct AddCardView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
-                        saveCard()
+                        if hasDuplicateCard {
+                            isShowingDuplicateAlert = true
+                        } else {
+                            saveCard()
+                        }
                     }
                     .disabled(!isFormValid)
                 }
@@ -1245,6 +1250,14 @@ private struct AddCardView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(scannerErrorMessage ?? "")
+            }
+            .alert("Card duplicata", isPresented: $isShowingDuplicateAlert) {
+                Button("Annulla", role: .cancel) {}
+                Button("Aggiungi comunque") {
+                    saveCard()
+                }
+            } message: {
+                Text("Esiste già una card con lo stesso codice a barre.")
             }
             .sheet(isPresented: $isShowingScanner) {
                 NavigationStack {
@@ -1271,8 +1284,22 @@ private struct AddCardView: View {
     }
 
     private var isFormValid: Bool {
-        !storeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !normalizedStoreName.isEmpty &&
+        !normalizedBarcodeValue.isEmpty
+    }
+
+    private var hasDuplicateCard: Bool {
+        existingCards.contains {
+            $0.barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedBarcodeValue
+        }
+    }
+
+    private var normalizedStoreName: String {
+        storeName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedBarcodeValue: String {
+        barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var scannerAlertIsPresented: Binding<Bool> {
@@ -1291,8 +1318,8 @@ private struct AddCardView: View {
 
         let newCard = Item(
             ownerName: ownerName.trimmingCharacters(in: .whitespacesAndNewlines),
-            storeName: storeName.trimmingCharacters(in: .whitespacesAndNewlines),
-            barcodeValue: barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            storeName: normalizedStoreName,
+            barcodeValue: normalizedBarcodeValue,
             tag: selectedTag,
             sortOrder: nextSortOrder,
             colorID: selectedColorID
