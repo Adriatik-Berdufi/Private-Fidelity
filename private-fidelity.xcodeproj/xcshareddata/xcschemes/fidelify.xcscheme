@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "28E8A7F02F93C4A100A60212"
-               BuildableName = "fidelify.app"
-               BlueprintName = "fidelify"
-               ReferencedContainer = "container:fidelify.xcodeproj">
+               BuildableName = "private-fidelity.app"
+               BlueprintName = "private-fidelity"
+               ReferencedContainer = "container:private-fidelity.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,9 +46,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "28E8A7F02F93C4A100A60212"
-            BuildableName = "fidelify.app"
-            BlueprintName = "fidelify"
-            ReferencedContainer = "container:fidelify.xcodeproj">
+            BuildableName = "private-fidelity.app"
+            BlueprintName = "private-fidelity"
+            ReferencedContainer = "container:private-fidelity.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,9 +63,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "28E8A7F02F93C4A100A60212"
-            BuildableName = "fidelify.app"
-            BlueprintName = "fidelify"
-            ReferencedContainer = "container:fidelify.xcodeproj">
+            BuildableName = "private-fidelity.app"
+            BlueprintName = "private-fidelity"
+            ReferencedContainer = "container:private-fidelity.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

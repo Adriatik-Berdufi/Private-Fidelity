@@ -1,6 +1,6 @@
 //
-//  fidelifyApp.swift
-//  fidelify
+//  PrivateFidelityApp.swift
+//  private-fidelity
 //
 //  Created by Adriatik Berdufi on 18/04/2026.
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct fidelifyApp: App {
+struct PrivateFidelityApp: App {
     private static let hasSeededDemoCardsKey = "hasSeededDemoCards"
     var sharedModelContainer: ModelContainer = Self.makeModelContainer()
 

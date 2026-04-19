@@ -20,7 +20,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     var onFailure: ((String) -> Void)?
 
     private let captureSession = AVCaptureSession()
-    private let sessionQueue = DispatchQueue(label: "fidelify.camera.session")
+    private let sessionQueue = DispatchQueue(label: "private-fidelity.camera.session")
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var didScanCode = false
 

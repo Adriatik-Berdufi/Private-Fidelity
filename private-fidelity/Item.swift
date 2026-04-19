@@ -1,6 +1,6 @@
 //
 //  Item.swift
-//  fidelify
+//  private-fidelity
 //
 //  Created by Adriatik Berdufi on 18/04/2026.
 //

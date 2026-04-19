@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  fidelify
+//  private-fidelity
 //
 //  Created by Adriatik Berdufi on 18/04/2026.
 //
@@ -65,7 +65,6 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Fidelify")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !cards.isEmpty {
@@ -777,7 +776,7 @@ private struct LegacySingleCardPayload: Codable {
 }
 
 private enum CardTransferCodec {
-    static let fileType = UTType(filenameExtension: "fidelifycard") ?? .json
+    static let fileType = UTType(filenameExtension: "private-fidelitycard") ?? .json
     private static let supportedVersion = 1
     private static let maxFileSizeBytes = 250 * 1024
     private static let maxCardsPerFile = 100
@@ -808,12 +807,12 @@ private enum CardTransferCodec {
             let fallbackStoreName = cleanStoreName.isEmpty ? "card" : cleanStoreName
             fileName = "\(fallbackStoreName)-\(first.barcodeValue)"
         } else {
-            fileName = "fidelify-cards-\(payloads.count)"
+            fileName = "private-fidelity-cards-\(payloads.count)"
         }
 
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(fileName)
-            .appendingPathExtension("fidelifycard")
+            .appendingPathExtension("private-fidelitycard")
 
         try data.write(to: fileURL, options: .atomic)
         return fileURL
