@@ -10,20 +10,8 @@ import SwiftData
 
 @main
 struct fidelifyApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            seedDemoCardsIfNeeded(in: container)
-            return container
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    private static let hasSeededDemoCardsKey = "hasSeededDemoCards"
+    var sharedModelContainer: ModelContainer = Self.makeModelContainer()
 
     var body: some Scene {
         WindowGroup {
@@ -32,12 +20,40 @@ struct fidelifyApp: App {
         .modelContainer(sharedModelContainer)
     }
 
+    private static func makeModelContainer() -> ModelContainer {
+        let schema = Schema([
+            Item.self,
+        ])
+
+        do {
+            let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let container = try ModelContainer(for: schema, configurations: [persistentConfiguration])
+            seedDemoCardsIfNeeded(in: container)
+            return container
+        } catch {
+            // Fallback per evitare blocchi all'avvio in caso di store locale non leggibile.
+            do {
+                let inMemoryConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                let container = try ModelContainer(for: schema, configurations: [inMemoryConfiguration])
+                seedDemoCardsIfNeeded(in: container)
+                return container
+            } catch {
+                fatalError("Could not create ModelContainer: \(error)")
+            }
+        }
+    }
+
     private static func seedDemoCardsIfNeeded(in container: ModelContainer) {
+        guard !UserDefaults.standard.bool(forKey: hasSeededDemoCardsKey) else {
+            return
+        }
+
         let context = ModelContext(container)
 
         do {
             let existingCards = try context.fetch(FetchDescriptor<Item>())
             guard existingCards.isEmpty else {
+                UserDefaults.standard.set(true, forKey: hasSeededDemoCardsKey)
                 return
             }
 
@@ -54,8 +70,9 @@ struct fidelifyApp: App {
             }
 
             try context.save()
+            UserDefaults.standard.set(true, forKey: hasSeededDemoCardsKey)
         } catch {
-            assertionFailure("Demo cards seed failed: \(error.localizedDescription)")
+            print("Demo cards seed failed: \(error.localizedDescription)")
         }
     }
 }

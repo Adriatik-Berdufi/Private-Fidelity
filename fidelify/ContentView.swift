@@ -16,9 +16,14 @@ struct ContentView: View {
     @Query(sort: [SortDescriptor(\Item.sortOrder), SortDescriptor(\Item.createdAt, order: .reverse)]) private var cards: [Item]
 
     @State private var isPresentingAddCard = false
+    @State private var isPresentingImportPicker = false
+    @State private var isPresentingExportPicker = false
     @State private var draggedCard: Item?
     @State private var selectedCard: Item?
     @State private var isShowingDeleteAllAlert = false
+    @State private var importAlertMessage: String?
+    @State private var exportAlertMessage: String?
+    @State private var shareSheetItem: ShareSheetItem?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -70,7 +75,21 @@ struct ContentView: View {
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        isPresentingImportPicker = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.title3)
+                    }
+
+                    Button {
+                        isPresentingExportPicker = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title3)
+                    }
+
                     Button {
                         isPresentingAddCard = true
                     } label: {
@@ -82,6 +101,21 @@ struct ContentView: View {
             .sheet(isPresented: $isPresentingAddCard) {
                 AddCardView()
             }
+            .sheet(isPresented: $isPresentingExportPicker) {
+                ExportCardsView(cards: cards) { selectedCards in
+                    exportCards(selectedCards)
+                }
+            }
+            .fileImporter(
+                isPresented: $isPresentingImportPicker,
+                allowedContentTypes: [CardTransferCodec.fileType, .json],
+                allowsMultipleSelection: false
+            ) { result in
+                importCard(from: result)
+            }
+            .sheet(item: $shareSheetItem) { item in
+                ActivityView(activityItems: [item.url])
+            }
             .navigationDestination(item: $selectedCard) { card in
                 CardDetailView(card: card)
             }
@@ -92,6 +126,16 @@ struct ContentView: View {
                 }
             } message: {
                 Text("Questa azione rimuove tutte le card salvate sul dispositivo.")
+            }
+            .alert("Importazione", isPresented: importAlertIsPresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importAlertMessage ?? "")
+            }
+            .alert("Esportazione", isPresented: exportAlertIsPresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(exportAlertMessage ?? "")
             }
         }
     }
@@ -170,6 +214,97 @@ struct ContentView: View {
         }
     }
 
+    private var importAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { importAlertMessage != nil },
+            set: { newValue in
+                if !newValue {
+                    importAlertMessage = nil
+                }
+            }
+        )
+    }
+
+    private var exportAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { exportAlertMessage != nil },
+            set: { newValue in
+                if !newValue {
+                    exportAlertMessage = nil
+                }
+            }
+        )
+    }
+
+    private func importCard(from result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            guard let url = urls.first else {
+                importAlertMessage = "Nessun file selezionato."
+                return
+            }
+
+            let hasAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileData = try Data(contentsOf: url)
+            let transferredCards = try CardTransferCodec.decodeCards(fileData)
+            var nextSortOrder = (cards.map(\.sortOrder).max() ?? -1) + 1
+            var nextFavoriteOrder = (cards.filter(\.isFavorite).map(\.favoriteOrder).max() ?? -1) + 1
+
+            for transferredCard in transferredCards {
+                let item = Item(
+                    ownerName: transferredCard.ownerName,
+                    storeName: transferredCard.storeName,
+                    barcodeValue: transferredCard.barcodeValue,
+                    sortOrder: nextSortOrder,
+                    favoriteOrder: transferredCard.isFavorite ? nextFavoriteOrder : 0,
+                    isFavorite: transferredCard.isFavorite,
+                    colorID: transferredCard.colorID
+                )
+                modelContext.insert(item)
+                nextSortOrder += 1
+                if transferredCard.isFavorite {
+                    nextFavoriteOrder += 1
+                }
+            }
+
+            try modelContext.save()
+            importAlertMessage = transferredCards.count == 1
+                ? "Card importata con successo."
+                : "\(transferredCards.count) card importate con successo."
+        } catch {
+            importAlertMessage = "Importazione fallita: \(error.localizedDescription)"
+        }
+    }
+
+    private func exportCards(_ selectedCards: [Item]) {
+        guard !selectedCards.isEmpty else {
+            exportAlertMessage = "Seleziona almeno una card da esportare."
+            return
+        }
+
+        do {
+            let payloads = selectedCards.map {
+                CardTransferPayload(
+                    ownerName: $0.ownerName,
+                    storeName: $0.storeName,
+                    barcodeValue: $0.barcodeValue,
+                    colorID: $0.colorID,
+                    isFavorite: $0.isFavorite
+                )
+            }
+            let fileURL = try CardTransferCodec.encodeCardsToTemporaryFile(payloads)
+            shareSheetItem = ShareSheetItem(url: fileURL)
+        } catch {
+            exportAlertMessage = "Esportazione fallita: \(error.localizedDescription)"
+        }
+    }
+
     private func moveCard(_ dragged: Item, before target: Item) {
         guard dragged.persistentModelID != target.persistentModelID else {
             return
@@ -221,6 +356,89 @@ struct ContentView: View {
             try modelContext.save()
         } catch {
             assertionFailure("Errore salvataggio ordinamento preferiti: \(error.localizedDescription)")
+        }
+    }
+}
+
+private struct ExportCardsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let cards: [Item]
+    let onExport: ([Item]) -> Void
+    @State private var selectedIDs: Set<PersistentIdentifier> = []
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if cards.isEmpty {
+                    ContentUnavailableView("Nessuna card", systemImage: "tray")
+                        .frame(maxHeight: .infinity)
+                } else {
+                    List(cards, id: \.persistentModelID) { card in
+                        Button {
+                            toggleSelection(for: card.persistentModelID)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: selectedIDs.contains(card.persistentModelID) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(selectedIDs.contains(card.persistentModelID) ? Color.accentColor : Color.secondary)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(card.storeName)
+                                        .foregroundStyle(.primary)
+                                    Text(card.barcodeValue)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listStyle(.plain)
+
+                    VStack(spacing: 10) {
+                        Button("Esporta (\(selectedCards.count))") {
+                            onExport(selectedCards)
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedCards.isEmpty)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("Esporta Card")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Chiudi") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(selectedIDs.count == cards.count ? "Deseleziona" : "Seleziona tutte") {
+                        if selectedIDs.count == cards.count {
+                            selectedIDs.removeAll()
+                        } else {
+                            selectedIDs = Set(cards.map(\.persistentModelID))
+                        }
+                    }
+                    .disabled(cards.isEmpty)
+                }
+            }
+        }
+    }
+
+    private var selectedCards: [Item] {
+        cards.filter { selectedIDs.contains($0.persistentModelID) }
+    }
+
+    private func toggleSelection(for id: PersistentIdentifier) {
+        if selectedIDs.contains(id) {
+            selectedIDs.remove(id)
+        } else {
+            selectedIDs.insert(id)
         }
     }
 }
@@ -337,6 +555,8 @@ private struct CardDetailView: View {
     let card: Item
     @State private var isShowingDeleteAlert = false
     @State private var isShowingEditSheet = false
+    @State private var shareSheetItem: ShareSheetItem?
+    @State private var shareErrorMessage: String?
 
     var body: some View {
         let tint = AppTheme.tint(for: card)
@@ -397,7 +617,7 @@ private struct CardDetailView: View {
                                 .frame(maxWidth: 360, maxHeight: 200)
 
                             Text(card.barcodeValue)
-                                .font(.footnote.monospaced())
+                                .font(.system(size: 13, design: .monospaced))
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(.black.opacity(0.75))
                                 .padding(.top,-14)
@@ -431,6 +651,12 @@ private struct CardDetailView: View {
                     Image(systemName: "pencil")
                 }
 
+                Button {
+                    prepareCardShare()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+
                 Button(role: .destructive) {
                     isShowingDeleteAlert = true
                 } label: {
@@ -450,6 +676,14 @@ private struct CardDetailView: View {
         .sheet(isPresented: $isShowingEditSheet) {
             EditCardView(card: card)
         }
+        .sheet(item: $shareSheetItem) { item in
+            ActivityView(activityItems: [item.url])
+        }
+        .alert("Errore condivisione", isPresented: shareErrorIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(shareErrorMessage ?? "")
+        }
     }
 
     private func toggleFavorite() {
@@ -466,6 +700,255 @@ private struct CardDetailView: View {
             try modelContext.save()
         } catch {
             assertionFailure("Errore salvataggio preferiti: \(error.localizedDescription)")
+        }
+    }
+
+    private var shareErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: { shareErrorMessage != nil },
+            set: { newValue in
+                if !newValue {
+                    shareErrorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func prepareCardShare() {
+        do {
+            let payload = CardTransferPayload(
+                ownerName: card.ownerName,
+                storeName: card.storeName,
+                barcodeValue: card.barcodeValue,
+                colorID: card.colorID,
+                isFavorite: card.isFavorite
+            )
+            let fileURL = try CardTransferCodec.encodeToTemporaryFile(payload)
+            shareSheetItem = ShareSheetItem(url: fileURL)
+        } catch {
+            shareErrorMessage = "Impossibile preparare la condivisione: \(error.localizedDescription)"
+        }
+    }
+}
+
+private struct ShareSheetItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private struct CardTransferPayload: Codable {
+    let ownerName: String
+    let storeName: String
+    let barcodeValue: String
+    let colorID: String
+    let isFavorite: Bool
+
+    init(ownerName: String, storeName: String, barcodeValue: String, colorID: String, isFavorite: Bool) {
+        self.ownerName = ownerName
+        self.storeName = storeName
+        self.barcodeValue = barcodeValue
+        self.colorID = colorID
+        self.isFavorite = isFavorite
+    }
+}
+
+private struct CardTransferBundle: Codable {
+    let version: Int
+    let cards: [CardTransferPayload]
+}
+
+private struct LegacySingleCardPayload: Codable {
+    let version: Int
+    let ownerName: String
+    let storeName: String
+    let barcodeValue: String
+    let colorID: String
+    let isFavorite: Bool
+}
+
+private enum CardTransferCodec {
+    static let fileType = UTType(filenameExtension: "fidelifycard") ?? .json
+    private static let supportedVersion = 1
+    private static let maxFileSizeBytes = 250 * 1024
+    private static let maxCardsPerFile = 100
+    private static let maxOwnerNameLength = 20
+    private static let maxStoreNameLength = 20
+    private static let maxBarcodeLength = 128
+    private static let maxColorIDLength = 16
+
+    static func encodeToTemporaryFile(_ payload: CardTransferPayload) throws -> URL {
+        try encodeCardsToTemporaryFile([payload])
+    }
+
+    static func encodeCardsToTemporaryFile(_ payloads: [CardTransferPayload]) throws -> URL {
+        guard !payloads.isEmpty else {
+            throw CardTransferError.emptyBundle
+        }
+
+        let bundle = CardTransferBundle(version: 1, cards: payloads)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(bundle)
+
+        let fileName: String
+        if payloads.count == 1, let first = payloads.first {
+            let cleanStoreName = first.storeName
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " ", with: "-")
+            let fallbackStoreName = cleanStoreName.isEmpty ? "card" : cleanStoreName
+            fileName = "\(fallbackStoreName)-\(first.barcodeValue)"
+        } else {
+            fileName = "fidelify-cards-\(payloads.count)"
+        }
+
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(fileName)
+            .appendingPathExtension("fidelifycard")
+
+        try data.write(to: fileURL, options: .atomic)
+        return fileURL
+    }
+
+    static func decodeCards(_ data: Data) throws -> [CardTransferPayload] {
+        guard !data.isEmpty else {
+            throw CardTransferError.emptyFile
+        }
+        guard data.count <= maxFileSizeBytes else {
+            throw CardTransferError.fileTooLarge
+        }
+
+        let decoder = JSONDecoder()
+        if let bundle = try? decoder.decode(CardTransferBundle.self, from: data) {
+            guard bundle.version == supportedVersion else {
+                throw CardTransferError.unsupportedVersion
+            }
+            guard !bundle.cards.isEmpty else {
+                throw CardTransferError.emptyBundle
+            }
+            guard bundle.cards.count <= maxCardsPerFile else {
+                throw CardTransferError.tooManyCards
+            }
+            try validate(bundle.cards)
+            return bundle.cards
+        }
+
+        let legacySinglePayload = try decoder.decode(LegacySingleCardPayload.self, from: data)
+        guard legacySinglePayload.version == supportedVersion else {
+            throw CardTransferError.unsupportedVersion
+        }
+        let singlePayload = CardTransferPayload(
+            ownerName: legacySinglePayload.ownerName,
+            storeName: legacySinglePayload.storeName,
+            barcodeValue: legacySinglePayload.barcodeValue,
+            colorID: legacySinglePayload.colorID,
+            isFavorite: legacySinglePayload.isFavorite
+        )
+        try validate([singlePayload])
+        return [singlePayload]
+    }
+
+    private static func validate(_ payloads: [CardTransferPayload]) throws {
+        var seenKeys = Set<String>()
+
+        for payload in payloads {
+            let ownerName = payload.ownerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let storeName = payload.storeName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let barcodeValue = payload.barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let colorID = payload.colorID.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !storeName.isEmpty else {
+                throw CardTransferError.invalidStoreName
+            }
+            guard !barcodeValue.isEmpty else {
+                throw CardTransferError.invalidBarcode
+            }
+            guard ownerName.count <= maxOwnerNameLength else {
+                throw CardTransferError.ownerNameTooLong
+            }
+            guard storeName.count <= maxStoreNameLength else {
+                throw CardTransferError.storeNameTooLong
+            }
+            guard barcodeValue.count <= maxBarcodeLength else {
+                throw CardTransferError.barcodeTooLong
+            }
+            guard colorID.count <= maxColorIDLength else {
+                throw CardTransferError.colorIDTooLong
+            }
+            guard !containsControlCharacters(ownerName),
+                  !containsControlCharacters(storeName),
+                  !containsControlCharacters(barcodeValue),
+                  !containsControlCharacters(colorID) else {
+                throw CardTransferError.invalidCharacters
+            }
+
+            let dedupKey = "\(storeName.lowercased())|\(barcodeValue)"
+            guard !seenKeys.contains(dedupKey) else {
+                throw CardTransferError.duplicateCardsInFile
+            }
+            seenKeys.insert(dedupKey)
+        }
+    }
+
+    private static func containsControlCharacters(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            CharacterSet.controlCharacters.contains(scalar)
+        }
+    }
+}
+
+private enum CardTransferError: LocalizedError {
+    case emptyFile
+    case fileTooLarge
+    case unsupportedVersion
+    case invalidStoreName
+    case invalidBarcode
+    case ownerNameTooLong
+    case storeNameTooLong
+    case barcodeTooLong
+    case colorIDTooLong
+    case invalidCharacters
+    case tooManyCards
+    case duplicateCardsInFile
+    case emptyBundle
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyFile:
+            return "Il file selezionato è vuoto."
+        case .fileTooLarge:
+            return "Il file è troppo grande. Usa un file sotto 1 MB."
+        case .unsupportedVersion:
+            return "Formato file non supportato. Aggiorna l'app o rigenera il file."
+        case .invalidStoreName:
+            return "Nome negozio mancante nel file."
+        case .invalidBarcode:
+            return "Codice a barre mancante nel file."
+        case .ownerNameTooLong:
+            return "Nome intestatario troppo lungo."
+        case .storeNameTooLong:
+            return "Nome negozio troppo lungo."
+        case .barcodeTooLong:
+            return "Codice a barre troppo lungo."
+        case .colorIDTooLong:
+            return "Identificativo colore non valido."
+        case .invalidCharacters:
+            return "Il file contiene caratteri non validi."
+        case .tooManyCards:
+            return "Il file contiene troppe card (max 500)."
+        case .duplicateCardsInFile:
+            return "Il file contiene card duplicate."
+        case .emptyBundle:
+            return "Il file non contiene card da importare."
         }
     }
 }
