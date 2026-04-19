@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var importAlertMessage: String?
     @State private var exportAlertMessage: String?
     @State private var shareSheetItem: ShareSheetItem?
+    @State private var allCardsFilter: AllCardsFilter = .all
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -53,9 +54,28 @@ struct ContentView: View {
 
                             sectionTitle("Tutte le card")
 
-                            LazyVGrid(columns: gridColumns, spacing: 12) {
-                                ForEach(allCards) { card in
-                                    cardTile(card, context: .all)
+                            Picker("Filtro card", selection: $allCardsFilter) {
+                                ForEach(AllCardsFilter.allCases) { filter in
+                                    Text(filter.title).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            if allCardsFilter == .all {
+                                LazyVGrid(columns: gridColumns, spacing: 12) {
+                                    ForEach(allCards) { card in
+                                        cardTile(card, context: .all)
+                                    }
+                                }
+                            } else {
+                                ForEach(allCardsGroupedByTag) { group in
+                                    sectionTitle(CardTagCatalog.displayName(for: group.tag))
+
+                                    LazyVGrid(columns: gridColumns, spacing: 12) {
+                                        ForEach(group.cards) { card in
+                                            cardTile(card, context: .all)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -154,6 +174,31 @@ struct ContentView: View {
         cards.sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    private var allCardsGroupedByTag: [TagGroup] {
+        let grouped = Dictionary(grouping: allCards) { card in
+            normalizedTag(card.tag)
+        }
+
+        var groups: [TagGroup] = []
+        for tag in CardTagCatalog.all where grouped[tag] != nil {
+            groups.append(TagGroup(tag: tag, cards: grouped[tag] ?? []))
+        }
+
+        let knownTags = Set(CardTagCatalog.all)
+        let unknownTags = grouped.keys
+            .filter { !knownTags.contains($0) }
+            .sorted()
+        for tag in unknownTags {
+            groups.append(TagGroup(tag: tag, cards: grouped[tag] ?? []))
+        }
+
+        return groups
+    }
+
+    private func normalizedTag(_ tag: String?) -> String {
+        (tag ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     @ViewBuilder
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
@@ -164,6 +209,31 @@ struct ContentView: View {
     private enum CardListContext {
         case favorites
         case all
+    }
+
+    private enum AllCardsFilter: String, CaseIterable, Identifiable {
+        case all
+        case byTag
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .all:
+                return "Tutte"
+            case .byTag:
+                return "Per Tag"
+            }
+        }
+    }
+
+    private struct TagGroup: Identifiable {
+        let tag: String
+        let cards: [Item]
+
+        var id: String {
+            tag.isEmpty ? "__no_tag__" : tag
+        }
     }
 
     @ViewBuilder
