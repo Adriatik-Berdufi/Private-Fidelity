@@ -13,6 +13,7 @@ final class Item {
     var ownerName: String
     var storeName: String
     var barcodeValue: String
+    var tag: String?
     var createdAt: Date
     var sortOrder: Int = 0
     var favoriteOrder: Int = 0
@@ -23,6 +24,7 @@ final class Item {
         ownerName: String,
         storeName: String,
         barcodeValue: String,
+        tag: String = "",
         createdAt: Date = Date(),
         sortOrder: Int = 0,
         favoriteOrder: Int = 0,
@@ -32,6 +34,7 @@ final class Item {
         self.ownerName = ownerName
         self.storeName = storeName
         self.barcodeValue = barcodeValue
+        self.tag = tag
         self.createdAt = createdAt
         self.sortOrder = sortOrder
         self.favoriteOrder = favoriteOrder

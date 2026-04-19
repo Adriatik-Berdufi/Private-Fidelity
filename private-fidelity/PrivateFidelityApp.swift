@@ -10,7 +10,6 @@ import SwiftData
 
 @main
 struct PrivateFidelityApp: App {
-    private static let hasSeededDemoCardsKey = "hasSeededDemoCards"
     var sharedModelContainer: ModelContainer = Self.makeModelContainer()
 
     var body: some Scene {
@@ -26,6 +25,7 @@ struct PrivateFidelityApp: App {
         ])
 
         do {
+            ensureApplicationSupportDirectoryExists()
             let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             let container = try ModelContainer(for: schema, configurations: [persistentConfiguration])
             seedDemoCardsIfNeeded(in: container)
@@ -43,17 +43,29 @@ struct PrivateFidelityApp: App {
         }
     }
 
-    private static func seedDemoCardsIfNeeded(in container: ModelContainer) {
-        guard !UserDefaults.standard.bool(forKey: hasSeededDemoCardsKey) else {
-            return
+    private static func ensureApplicationSupportDirectoryExists() {
+        do {
+            let appSupportURL = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            try FileManager.default.createDirectory(
+                at: appSupportURL,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            print("Unable to prepare Application Support directory: \(error.localizedDescription)")
         }
+    }
 
+    private static func seedDemoCardsIfNeeded(in container: ModelContainer) {
         let context = ModelContext(container)
 
         do {
             let existingCards = try context.fetch(FetchDescriptor<Item>())
             guard existingCards.isEmpty else {
-                UserDefaults.standard.set(true, forKey: hasSeededDemoCardsKey)
                 return
             }
 
@@ -62,6 +74,7 @@ struct PrivateFidelityApp: App {
                     ownerName: card.ownerName,
                     storeName: card.storeName,
                     barcodeValue: card.barcodeValue,
+                    tag: card.tag,
                     sortOrder: index,
                     favoriteOrder: index,
                     isFavorite: index < 6
@@ -70,7 +83,6 @@ struct PrivateFidelityApp: App {
             }
 
             try context.save()
-            UserDefaults.standard.set(true, forKey: hasSeededDemoCardsKey)
         } catch {
             print("Demo cards seed failed: \(error.localizedDescription)")
         }

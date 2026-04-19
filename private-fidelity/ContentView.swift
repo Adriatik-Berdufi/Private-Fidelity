@@ -260,6 +260,7 @@ struct ContentView: View {
                     ownerName: transferredCard.ownerName,
                     storeName: transferredCard.storeName,
                     barcodeValue: transferredCard.barcodeValue,
+                    tag: transferredCard.tag,
                     sortOrder: nextSortOrder,
                     favoriteOrder: transferredCard.isFavorite ? nextFavoriteOrder : 0,
                     isFavorite: transferredCard.isFavorite,
@@ -293,6 +294,7 @@ struct ContentView: View {
                     ownerName: $0.ownerName,
                     storeName: $0.storeName,
                     barcodeValue: $0.barcodeValue,
+                    tag: $0.tag ?? "",
                     colorID: $0.colorID,
                     isFavorite: $0.isFavorite
                 )
@@ -497,7 +499,7 @@ private struct CardRowView: View {
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: "building.2.fill")
+                Image(systemName: CardTagCatalog.iconName(for: card.tag))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 28, height: 28)
@@ -585,6 +587,15 @@ private struct CardDetailView: View {
                         .font(.title2.weight(.bold))
                         .fontDesign(.rounded)
                         .foregroundStyle(.white)
+
+                    if let tag = card.tag, !tag.isEmpty {
+                        Text(CardTagCatalog.displayName(for: tag))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.white.opacity(0.16), in: Capsule())
+                    }
 
                 }
                 .padding(20)
@@ -719,6 +730,7 @@ private struct CardDetailView: View {
                 ownerName: card.ownerName,
                 storeName: card.storeName,
                 barcodeValue: card.barcodeValue,
+                tag: card.tag ?? "",
                 colorID: card.colorID,
                 isFavorite: card.isFavorite
             )
@@ -749,15 +761,36 @@ private struct CardTransferPayload: Codable {
     let ownerName: String
     let storeName: String
     let barcodeValue: String
+    let tag: String
     let colorID: String
     let isFavorite: Bool
 
-    init(ownerName: String, storeName: String, barcodeValue: String, colorID: String, isFavorite: Bool) {
+    private enum CodingKeys: String, CodingKey {
+        case ownerName
+        case storeName
+        case barcodeValue
+        case tag
+        case colorID
+        case isFavorite
+    }
+
+    init(ownerName: String, storeName: String, barcodeValue: String, tag: String = "", colorID: String, isFavorite: Bool) {
         self.ownerName = ownerName
         self.storeName = storeName
         self.barcodeValue = barcodeValue
+        self.tag = tag
         self.colorID = colorID
         self.isFavorite = isFavorite
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ownerName = try container.decode(String.self, forKey: .ownerName)
+        storeName = try container.decode(String.self, forKey: .storeName)
+        barcodeValue = try container.decode(String.self, forKey: .barcodeValue)
+        tag = try container.decodeIfPresent(String.self, forKey: .tag) ?? ""
+        colorID = try container.decode(String.self, forKey: .colorID)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
     }
 }
 
@@ -784,6 +817,7 @@ private enum CardTransferCodec {
     private static let maxStoreNameLength = 20
     private static let maxBarcodeLength = 128
     private static let maxColorIDLength = 16
+    private static let maxTagLength = 20
 
     static func encodeToTemporaryFile(_ payload: CardTransferPayload) throws -> URL {
         try encodeCardsToTemporaryFile([payload])
@@ -864,6 +898,7 @@ private enum CardTransferCodec {
             let storeName = payload.storeName.trimmingCharacters(in: .whitespacesAndNewlines)
             let barcodeValue = payload.barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
             let colorID = payload.colorID.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tag = payload.tag.trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !storeName.isEmpty else {
                 throw CardTransferError.invalidStoreName
@@ -883,10 +918,14 @@ private enum CardTransferCodec {
             guard colorID.count <= maxColorIDLength else {
                 throw CardTransferError.colorIDTooLong
             }
+            guard tag.count <= maxTagLength else {
+                throw CardTransferError.tagTooLong
+            }
             guard !containsControlCharacters(ownerName),
                   !containsControlCharacters(storeName),
                   !containsControlCharacters(barcodeValue),
-                  !containsControlCharacters(colorID) else {
+                  !containsControlCharacters(colorID),
+                  !containsControlCharacters(tag) else {
                 throw CardTransferError.invalidCharacters
             }
 
@@ -915,6 +954,7 @@ private enum CardTransferError: LocalizedError {
     case storeNameTooLong
     case barcodeTooLong
     case colorIDTooLong
+    case tagTooLong
     case invalidCharacters
     case tooManyCards
     case duplicateCardsInFile
@@ -940,6 +980,8 @@ private enum CardTransferError: LocalizedError {
             return "Codice a barre troppo lungo."
         case .colorIDTooLong:
             return "Identificativo colore non valido."
+        case .tagTooLong:
+            return "Tag troppo lungo."
         case .invalidCharacters:
             return "Il file contiene caratteri non validi."
         case .tooManyCards:
@@ -959,6 +1001,7 @@ private struct EditCardView: View {
     @State private var draftOwnerName: String
     @State private var draftStoreName: String
     @State private var draftBarcodeValue: String
+    @State private var draftTag: String
     @State private var draftColorID: String
 
     init(card: Item) {
@@ -966,6 +1009,7 @@ private struct EditCardView: View {
         _draftOwnerName = State(initialValue: card.ownerName)
         _draftStoreName = State(initialValue: card.storeName)
         _draftBarcodeValue = State(initialValue: card.barcodeValue)
+        _draftTag = State(initialValue: card.tag ?? "")
         _draftColorID = State(initialValue: card.colorID)
     }
 
@@ -980,27 +1024,21 @@ private struct EditCardView: View {
                         .autocorrectionDisabled()
                 }
 
-                Section("Colore Card") {
-                    ForEach(AppTheme.colorOptions) { option in
-                        Button {
-                            draftColorID = option.id
-                        } label: {
-                            HStack(spacing: 10) {
-                                Circle()
-                                    .fill(option.color)
-                                    .frame(width: 14, height: 14)
-                                Text(option.name)
-                                Spacer()
-                                if draftColorID == option.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.tint)
-                                }
-                            }
-                            .contentShape(Rectangle())
+                Section("Tag Negozio") {
+                    Picker("Tag", selection: $draftTag) {
+                        ForEach(CardTagCatalog.all, id: \.self) { tag in
+                            Text(CardTagCatalog.displayName(for: tag)).tag(tag)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
                     }
+                }
+
+                Section("Colore Card") {
+                    Picker("Colore", selection: $draftColorID) {
+                        ForEach(AppTheme.colorOptions) { option in
+                            Text(option.name).tag(option.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
             .navigationTitle("Modifica")
@@ -1013,6 +1051,7 @@ private struct EditCardView: View {
                         card.ownerName = draftOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
                         card.storeName = draftStoreName.trimmingCharacters(in: .whitespacesAndNewlines)
                         card.barcodeValue = draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        card.tag = draftTag
                         card.colorID = draftColorID
                         dismiss()
                     }
@@ -1036,6 +1075,7 @@ private struct AddCardView: View {
     @State private var ownerName = ""
     @State private var storeName = ""
     @State private var barcodeValue = ""
+    @State private var selectedTag = ""
     @State private var selectedColorID = ""
     @State private var isShowingScanner = false
     @State private var scannerErrorMessage: String?
@@ -1077,30 +1117,36 @@ private struct AddCardView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
+                            Text("Tipo Negozio")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Picker("Tipo negozio", selection: $selectedTag) {
+                                ForEach(CardTagCatalog.all, id: \.self) { tag in
+                                    Text(CardTagCatalog.displayName(for: tag)).tag(tag)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+                        )
+
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Colore Card")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
-                            ForEach(AppTheme.colorOptions) { option in
-                                Button {
-                                    selectedColorID = option.id
-                                } label: {
-                                    HStack(spacing: 10) {
-                                        Circle()
-                                            .fill(option.color)
-                                            .frame(width: 14, height: 14)
-                                        Text(option.name)
-                                            .foregroundStyle(.primary)
-                                        Spacer()
-                                        if selectedColorID == option.id {
-                                            Image(systemName: "checkmark")
-                                                .foregroundStyle(.tint)
-                                        }
-                                    }
-                                    .contentShape(Rectangle())
+                            Picker("Colore card", selection: $selectedColorID) {
+                                ForEach(AppTheme.colorOptions) { option in
+                                    Text(option.name).tag(option.id)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .pickerStyle(.menu)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
@@ -1177,6 +1223,7 @@ private struct AddCardView: View {
             ownerName: ownerName.trimmingCharacters(in: .whitespacesAndNewlines),
             storeName: storeName.trimmingCharacters(in: .whitespacesAndNewlines),
             barcodeValue: barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            tag: selectedTag,
             sortOrder: nextSortOrder,
             colorID: selectedColorID
         )
@@ -1222,6 +1269,47 @@ private struct EmptyStateView: View {
                 .stroke(Color.white.opacity(0.5), lineWidth: 1)
         )
         .padding()
+    }
+}
+
+private enum CardTagCatalog {
+    static let all: [String] = [
+        "",
+        "Alimentari",
+        "Vestiti",
+        "Sport",
+        "Elettronica",
+        "Casa",
+        "Beauty",
+        "Libri",
+        "Altro"
+    ]
+
+    static func displayName(for value: String) -> String {
+        value.isEmpty ? "Nessuno" : value
+    }
+
+    static func iconName(for value: String?) -> String {
+        switch value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "alimentari":
+            return "cart.fill"
+        case "vestiti":
+            return "tshirt.fill"
+        case "sport":
+            return "figure.run"
+        case "elettronica":
+            return "desktopcomputer"
+        case "casa":
+            return "house.fill"
+        case "beauty":
+            return "sparkles"
+        case "libri":
+            return "book.fill"
+        case "altro":
+            return "tag.fill"
+        default:
+            return "building.2.fill"
+        }
     }
 }
 
