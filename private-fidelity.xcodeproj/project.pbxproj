@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		287F80102F9CD1A000A43069 /* CardValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F800F2F9CD19F00A43069 /* CardValidation.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		287F800F2F9CD19F00A43069 /* CardValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardValidation.swift; sourceTree = "<group>"; };
 		28E8A7F12F93C4A100A60212 /* fidelify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = fidelify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -34,6 +39,7 @@
 			children = (
 				28E8A7F32F93C4A100A60212 /* private-fidelity */,
 				28E8A7F22F93C4A100A60212 /* Products */,
+				287F800F2F9CD19F00A43069 /* CardValidation.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -48,7 +54,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		28E8A7F02F93C4A100A60212 /* private-fidelity */ = {
+		28E8A7F02F93C4A100A60212 /* fidelify */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 28E8A7FE2F93C4A200A60212 /* Build configuration list for PBXNativeTarget "fidelify" */;
 			buildPhases = (
@@ -99,7 +105,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				28E8A7F02F93C4A100A60212 /* private-fidelity */,
+				28E8A7F02F93C4A100A60212 /* fidelify */,
 			);
 		};
 /* End PBXProject section */
@@ -119,6 +125,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				287F80102F9CD1A000A43069 /* CardValidation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

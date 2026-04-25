@@ -1045,11 +1045,11 @@ private enum CardTransferCodec {
     private static let supportedVersion = 1
     private static let maxFileSizeBytes = 250 * 1024
     private static let maxCardsPerFile = 100
-    private static let maxOwnerNameLength = 20
-    private static let maxStoreNameLength = 20
-    private static let maxBarcodeLength = 128
-    private static let maxColorIDLength = 16
-    private static let maxTagLength = 20
+    private static let maxOwnerNameLength = CardInputLimits.ownerName
+    private static let maxStoreNameLength = CardInputLimits.storeName
+    private static let maxBarcodeLength = CardInputLimits.barcode
+    private static let maxColorIDLength = CardInputLimits.colorID
+    private static let maxTagLength = CardInputLimits.tag
 
     static func encodeToTemporaryFile(_ payload: CardTransferPayload) throws -> URL {
         try encodeCardsToTemporaryFile([payload])
@@ -1197,7 +1197,7 @@ private enum CardTransferError: LocalizedError {
         case .emptyFile:
             return "Il file selezionato è vuoto."
         case .fileTooLarge:
-            return "Il file è troppo grande. Usa un file sotto 1 MB."
+            return "Il file è troppo grande. Usa un file sotto 250 KB."
         case .unsupportedVersion:
             return "Formato file non supportato. Aggiorna l'app o rigenera il file."
         case .invalidStoreName:
@@ -1217,7 +1217,7 @@ private enum CardTransferError: LocalizedError {
         case .invalidCharacters:
             return "Il file contiene caratteri non validi."
         case .tooManyCards:
-            return "Il file contiene troppe card (max 500)."
+            return "Il file contiene troppe card (max 100)."
         case .duplicateCardsInFile:
             return "Il file contiene card duplicate."
         case .emptyBundle:
@@ -1346,7 +1346,7 @@ private struct EditCardView: View {
                 }
             }
             .onChange(of: draftOwnerName) { _, newValue in
-                enforceTextLimit(
+                CardInputValidator.enforceTextLimit(
                     text: &draftOwnerName,
                     newValue: newValue,
                     limit: CardInputLimits.ownerName,
@@ -1354,7 +1354,7 @@ private struct EditCardView: View {
                 )
             }
             .onChange(of: draftStoreName) { _, newValue in
-                enforceTextLimit(
+                CardInputValidator.enforceTextLimit(
                     text: &draftStoreName,
                     newValue: newValue,
                     limit: CardInputLimits.storeName,
@@ -1362,7 +1362,7 @@ private struct EditCardView: View {
                 )
             }
             .onChange(of: draftBarcodeValue) { _, newValue in
-                enforceBarcodeInput(
+                CardInputValidator.enforceBarcodeInput(
                     text: &draftBarcodeValue,
                     newValue: newValue,
                     limit: CardInputLimits.barcode,
@@ -1371,7 +1371,7 @@ private struct EditCardView: View {
                 )
             }
             .onChange(of: draftPointsText) { _, newValue in
-                enforcePointsInput(
+                CardInputValidator.enforcePointsInput(
                     text: &draftPointsText,
                     newValue: newValue,
                     limit: CardInputLimits.pointsDigits,
@@ -1387,111 +1387,27 @@ private struct EditCardView: View {
         barcodeLimitMessage == nil &&
         !draftStoreName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        BarcodeGenerator.isValidCode128Input(draftBarcodeValue) &&
+        CardInputValidator.isValidCode128Input(draftBarcodeValue) &&
         pointsValidationMessage == nil
     }
 
     private var parsedDraftPoints: Int {
         max(0, Int(draftPointsText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0)
     }
-
     private var pointsValidationMessage: String? {
-        if let pointsLimitMessage {
-            return pointsLimitMessage
-        }
-        let normalized = draftPointsText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalized.isEmpty {
-            return nil
-        }
-        guard normalized.allSatisfy(\.isNumber) else {
-            return "Punti non validi: inserisci solo numeri."
-        }
-        if normalized.count > CardInputLimits.pointsDigits {
-            return "Punti: massimo \(CardInputLimits.pointsDigits) cifre."
-        }
-        return nil
+        CardInputValidator.pointsValidationMessage(
+            pointsText: draftPointsText,
+            limitMessage: pointsLimitMessage
+        )
     }
 
     private var barcodeValidationMessage: String? {
-        if let barcodeLimitMessage {
-            return barcodeLimitMessage
-        }
-        let normalized = draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalized.isEmpty {
-            return nil
-        }
-        return BarcodeGenerator.isValidCode128Input(normalized)
-            ? nil
-            : "Barcode non valido: usa caratteri standard (ASCII)."
+        CardInputValidator.barcodeValidationMessage(
+            barcodeText: draftBarcodeValue,
+            limitMessage: barcodeLimitMessage
+        )
     }
 
-    private func enforceTextLimit(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        message: inout String?
-    ) {
-        let limited = String(newValue.prefix(limit))
-        if limited != newValue {
-            text = limited
-            message = "Hai superato il massimo di \(limit) caratteri."
-            return
-        }
-        if limited.count < limit {
-            message = nil
-        }
-    }
-
-    private func enforcePointsInput(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        message: inout String?
-    ) {
-        let digitsOnly = newValue.filter(\.isNumber)
-        let limited = String(digitsOnly.prefix(limit))
-        if limited != newValue {
-            text = limited
-            message = digitsOnly.count > limit
-                ? "Hai superato il massimo di \(limit) caratteri."
-                : "Sono consentiti solo numeri."
-            return
-        }
-        if limited.count < limit {
-            message = nil
-        }
-    }
-
-    private func enforceBarcodeInput(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        previousValue: inout String,
-        message: inout String?
-    ) {
-        let oldValue = previousValue
-        let oldTrimmed = oldValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let oldWasInvalid = !oldTrimmed.isEmpty && !BarcodeGenerator.isValidCode128Input(oldTrimmed)
-
-        if oldWasInvalid && newValue.count > oldValue.count {
-            text = oldValue
-            message = "Barcode non valido: correggilo prima di aggiungere altri caratteri."
-            return
-        }
-
-        let limited = String(newValue.prefix(limit))
-        if limited != newValue {
-            text = limited
-            previousValue = limited
-            message = "Hai superato il massimo di \(limit) caratteri."
-            return
-        }
-
-        previousValue = limited
-        if limited.count < limit {
-            message = nil
-        }
-    }
 }
 
 private struct AddCardView: View {
@@ -1668,7 +1584,7 @@ private struct AddCardView: View {
                 }
             }
             .onChange(of: ownerName) { _, newValue in
-                enforceTextLimit(
+                CardInputValidator.enforceTextLimit(
                     text: &ownerName,
                     newValue: newValue,
                     limit: CardInputLimits.ownerName,
@@ -1676,7 +1592,7 @@ private struct AddCardView: View {
                 )
             }
             .onChange(of: storeName) { _, newValue in
-                enforceTextLimit(
+                CardInputValidator.enforceTextLimit(
                     text: &storeName,
                     newValue: newValue,
                     limit: CardInputLimits.storeName,
@@ -1684,7 +1600,7 @@ private struct AddCardView: View {
                 )
             }
             .onChange(of: barcodeValue) { _, newValue in
-                enforceBarcodeInput(
+                CardInputValidator.enforceBarcodeInput(
                     text: &barcodeValue,
                     newValue: newValue,
                     limit: CardInputLimits.barcode,
@@ -1693,7 +1609,7 @@ private struct AddCardView: View {
                 )
             }
             .onChange(of: pointsText) { _, newValue in
-                enforcePointsInput(
+                CardInputValidator.enforcePointsInput(
                     text: &pointsText,
                     newValue: newValue,
                     limit: CardInputLimits.pointsDigits,
@@ -1712,7 +1628,7 @@ private struct AddCardView: View {
         barcodeLimitMessage == nil &&
         !normalizedStoreName.isEmpty &&
         !normalizedBarcodeValue.isEmpty &&
-        BarcodeGenerator.isValidCode128Input(normalizedBarcodeValue) &&
+        CardInputValidator.isValidCode128Input(normalizedBarcodeValue) &&
         pointsValidationMessage == nil
     }
 
@@ -1760,110 +1676,20 @@ private struct AddCardView: View {
     private var parsedPoints: Int {
         max(0, Int(pointsText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0)
     }
-
     private var barcodeValidationMessage: String? {
-        if let barcodeLimitMessage {
-            return barcodeLimitMessage
-        }
-        if normalizedBarcodeValue.isEmpty {
-            return nil
-        }
-        return BarcodeGenerator.isValidCode128Input(normalizedBarcodeValue)
-            ? nil
-            : "Barcode non valido: usa caratteri standard (ASCII)."
+        CardInputValidator.barcodeValidationMessage(
+            barcodeText: normalizedBarcodeValue,
+            limitMessage: barcodeLimitMessage
+        )
     }
-
     private var pointsValidationMessage: String? {
-        if let pointsLimitMessage {
-            return pointsLimitMessage
-        }
-        let normalized = pointsText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalized.isEmpty {
-            return nil
-        }
-        guard normalized.allSatisfy(\.isNumber) else {
-            return "Punti non validi: inserisci solo numeri."
-        }
-        if normalized.count > CardInputLimits.pointsDigits {
-            return "Punti: massimo \(CardInputLimits.pointsDigits) cifre."
-        }
-        return nil
+        CardInputValidator.pointsValidationMessage(
+            pointsText: pointsText,
+            limitMessage: pointsLimitMessage
+        )
     }
+    
 
-    private func enforceTextLimit(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        message: inout String?
-    ) {
-        let limited = String(newValue.prefix(limit))
-        if limited != newValue {
-            text = limited
-            message = "Hai superato il massimo di \(limit) caratteri."
-            return
-        }
-        if limited.count < limit {
-            message = nil
-        }
-    }
-
-    private func enforcePointsInput(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        message: inout String?
-    ) {
-        let digitsOnly = newValue.filter(\.isNumber)
-        let limited = String(digitsOnly.prefix(limit))
-        if limited != newValue {
-            text = limited
-            message = digitsOnly.count > limit
-                ? "Hai superato il massimo di \(limit) caratteri."
-                : "Sono consentiti solo numeri."
-            return
-        }
-        if limited.count < limit {
-            message = nil
-        }
-    }
-
-    private func enforceBarcodeInput(
-        text: inout String,
-        newValue: String,
-        limit: Int,
-        previousValue: inout String,
-        message: inout String?
-    ) {
-        let oldValue = previousValue
-        let oldTrimmed = oldValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let oldWasInvalid = !oldTrimmed.isEmpty && !BarcodeGenerator.isValidCode128Input(oldTrimmed)
-
-        if oldWasInvalid && newValue.count > oldValue.count {
-            text = oldValue
-            message = "Barcode non valido: correggilo prima di aggiungere altri caratteri."
-            return
-        }
-
-        let limited = String(newValue.prefix(limit))
-        if limited != newValue {
-            text = limited
-            previousValue = limited
-            message = "Hai superato il massimo di \(limit) caratteri."
-            return
-        }
-
-        previousValue = limited
-        if limited.count < limit {
-            message = nil
-        }
-    }
-}
-
-private enum CardInputLimits {
-    static let ownerName = 40
-    static let storeName = 20
-    static let barcode = 128
-    static let pointsDigits = 10
 }
 
 private struct EmptyStateView: View {
@@ -2026,20 +1852,10 @@ private enum AppTheme {
 }
 
 private enum BarcodeGenerator {
-    static func isValidCode128Input(_ value: String) -> Bool {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return false
-        }
-
-        return trimmed.unicodeScalars.allSatisfy { scalar in
-            scalar.isASCII && scalar.value >= 32 && scalar.value <= 126
-        }
-    }
-
     static func makeCode128(from value: String) -> UIImage? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isValidCode128Input(trimmed) else {
+
+        guard CardInputValidator.isValidCode128Input(trimmed) else {
             return nil
         }
 
