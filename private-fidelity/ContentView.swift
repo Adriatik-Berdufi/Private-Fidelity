@@ -1233,27 +1233,80 @@ private struct EditCardView: View {
     @State private var draftOwnerName: String
     @State private var draftStoreName: String
     @State private var draftBarcodeValue: String
+    @State private var draftPointsText: String
     @State private var draftTag: String
     @State private var draftColorID: String
+    @State private var ownerLimitMessage: String?
+    @State private var storeLimitMessage: String?
+    @State private var barcodeLimitMessage: String?
+    @State private var pointsLimitMessage: String?
+    @State private var previousDraftBarcodeValue: String
 
     init(card: Item) {
         self.card = card
         _draftOwnerName = State(initialValue: card.ownerName)
         _draftStoreName = State(initialValue: card.storeName)
         _draftBarcodeValue = State(initialValue: card.barcodeValue)
+        _draftPointsText = State(initialValue: "\(card.points ?? 0)")
         _draftTag = State(initialValue: card.tag ?? "")
         _draftColorID = State(initialValue: card.colorID)
+        _previousDraftBarcodeValue = State(initialValue: card.barcodeValue)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Modifica Card") {
-                    TextField("Nome intestatario", text: $draftOwnerName)
-                    TextField("Nome negozio", text: $draftStoreName)
-                    TextField("Codice a barre", text: $draftBarcodeValue)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    LabeledContent("Intestatario") {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            TextField("Nome intestatario", text: $draftOwnerName)
+                                .multilineTextAlignment(.trailing)
+                            if let ownerLimitMessage {
+                                Text(ownerLimitMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    LabeledContent("Negozio") {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            TextField("Nome negozio", text: $draftStoreName)
+                                .multilineTextAlignment(.trailing)
+                            if let storeLimitMessage {
+                                Text(storeLimitMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    LabeledContent("Codice") {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            TextField("Codice a barre", text: $draftBarcodeValue)
+                                .multilineTextAlignment(.trailing)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            if let barcodeValidationMessage {
+                                Text(barcodeValidationMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    LabeledContent("Punti") {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            TextField("0", text: $draftPointsText)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.numberPad)
+                            if let pointsValidationMessage {
+                                Text(pointsValidationMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
                 }
 
                 Section("Tag Negozio") {
@@ -1280,9 +1333,11 @@ private struct EditCardView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
+                        guard isFormValid else { return }
                         card.ownerName = draftOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
                         card.storeName = draftStoreName.trimmingCharacters(in: .whitespacesAndNewlines)
                         card.barcodeValue = draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        card.points = parsedDraftPoints
                         card.tag = draftTag
                         card.colorID = draftColorID
                         dismiss()
@@ -1290,12 +1345,152 @@ private struct EditCardView: View {
                     .disabled(!isFormValid)
                 }
             }
+            .onChange(of: draftOwnerName) { _, newValue in
+                enforceTextLimit(
+                    text: &draftOwnerName,
+                    newValue: newValue,
+                    limit: CardInputLimits.ownerName,
+                    message: &ownerLimitMessage
+                )
+            }
+            .onChange(of: draftStoreName) { _, newValue in
+                enforceTextLimit(
+                    text: &draftStoreName,
+                    newValue: newValue,
+                    limit: CardInputLimits.storeName,
+                    message: &storeLimitMessage
+                )
+            }
+            .onChange(of: draftBarcodeValue) { _, newValue in
+                enforceBarcodeInput(
+                    text: &draftBarcodeValue,
+                    newValue: newValue,
+                    limit: CardInputLimits.barcode,
+                    previousValue: &previousDraftBarcodeValue,
+                    message: &barcodeLimitMessage
+                )
+            }
+            .onChange(of: draftPointsText) { _, newValue in
+                enforcePointsInput(
+                    text: &draftPointsText,
+                    newValue: newValue,
+                    limit: CardInputLimits.pointsDigits,
+                    message: &pointsLimitMessage
+                )
+            }
         }
     }
 
     private var isFormValid: Bool {
+        ownerLimitMessage == nil &&
+        storeLimitMessage == nil &&
+        barcodeLimitMessage == nil &&
         !draftStoreName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        BarcodeGenerator.isValidCode128Input(draftBarcodeValue) &&
+        pointsValidationMessage == nil
+    }
+
+    private var parsedDraftPoints: Int {
+        max(0, Int(draftPointsText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0)
+    }
+
+    private var pointsValidationMessage: String? {
+        if let pointsLimitMessage {
+            return pointsLimitMessage
+        }
+        let normalized = draftPointsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return nil
+        }
+        guard normalized.allSatisfy(\.isNumber) else {
+            return "Punti non validi: inserisci solo numeri."
+        }
+        if normalized.count > CardInputLimits.pointsDigits {
+            return "Punti: massimo \(CardInputLimits.pointsDigits) cifre."
+        }
+        return nil
+    }
+
+    private var barcodeValidationMessage: String? {
+        if let barcodeLimitMessage {
+            return barcodeLimitMessage
+        }
+        let normalized = draftBarcodeValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return nil
+        }
+        return BarcodeGenerator.isValidCode128Input(normalized)
+            ? nil
+            : "Barcode non valido: usa caratteri standard (ASCII)."
+    }
+
+    private func enforceTextLimit(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        message: inout String?
+    ) {
+        let limited = String(newValue.prefix(limit))
+        if limited != newValue {
+            text = limited
+            message = "Hai superato il massimo di \(limit) caratteri."
+            return
+        }
+        if limited.count < limit {
+            message = nil
+        }
+    }
+
+    private func enforcePointsInput(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        message: inout String?
+    ) {
+        let digitsOnly = newValue.filter(\.isNumber)
+        let limited = String(digitsOnly.prefix(limit))
+        if limited != newValue {
+            text = limited
+            message = digitsOnly.count > limit
+                ? "Hai superato il massimo di \(limit) caratteri."
+                : "Sono consentiti solo numeri."
+            return
+        }
+        if limited.count < limit {
+            message = nil
+        }
+    }
+
+    private func enforceBarcodeInput(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        previousValue: inout String,
+        message: inout String?
+    ) {
+        let oldValue = previousValue
+        let oldTrimmed = oldValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oldWasInvalid = !oldTrimmed.isEmpty && !BarcodeGenerator.isValidCode128Input(oldTrimmed)
+
+        if oldWasInvalid && newValue.count > oldValue.count {
+            text = oldValue
+            message = "Barcode non valido: correggilo prima di aggiungere altri caratteri."
+            return
+        }
+
+        let limited = String(newValue.prefix(limit))
+        if limited != newValue {
+            text = limited
+            previousValue = limited
+            message = "Hai superato il massimo di \(limit) caratteri."
+            return
+        }
+
+        previousValue = limited
+        if limited.count < limit {
+            message = nil
+        }
     }
 }
 
@@ -1307,11 +1502,17 @@ private struct AddCardView: View {
     @State private var ownerName = ""
     @State private var storeName = ""
     @State private var barcodeValue = ""
+    @State private var pointsText = ""
     @State private var selectedTag = ""
     @State private var selectedColorID = ""
     @State private var isShowingScanner = false
     @State private var scannerErrorMessage: String?
     @State private var isShowingDuplicateAlert = false
+    @State private var ownerLimitMessage: String?
+    @State private var storeLimitMessage: String?
+    @State private var barcodeLimitMessage: String?
+    @State private var pointsLimitMessage: String?
+    @State private var previousBarcodeValue = ""
 
     var body: some View {
         NavigationStack {
@@ -1342,11 +1543,34 @@ private struct AddCardView: View {
                         .buttonStyle(.plain)
 
                         Group {
-                            StyledTextField(title: "Nome intestatario", text: $ownerName, icon: "person.fill")
-                            StyledTextField(title: "Nome negozio", text: $storeName, icon: "bag.fill")
-                            StyledTextField(title: "Codice a barre", text: $barcodeValue, icon: "barcode", monospaced: true)
+                            StyledTextField(
+                                title: "Nome intestatario",
+                                text: $ownerName,
+                                icon: "person.fill",
+                                helperMessage: ownerLimitMessage
+                            )
+                            StyledTextField(
+                                title: "Nome negozio",
+                                text: $storeName,
+                                icon: "bag.fill",
+                                helperMessage: storeLimitMessage
+                            )
+                            StyledTextField(
+                                title: "Codice a barre",
+                                text: $barcodeValue,
+                                icon: "barcode",
+                                monospaced: true,
+                                helperMessage: barcodeValidationMessage
+                            )
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
+                            StyledTextField(
+                                title: "Punti",
+                                text: $pointsText,
+                                icon: "star.fill",
+                                helperMessage: pointsValidationMessage
+                            )
+                                .keyboardType(.numberPad)
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
@@ -1399,6 +1623,7 @@ private struct AddCardView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
+                        guard isFormValid else { return }
                         if hasDuplicateCard {
                             isShowingDuplicateAlert = true
                         } else {
@@ -1442,12 +1667,53 @@ private struct AddCardView: View {
                     }
                 }
             }
+            .onChange(of: ownerName) { _, newValue in
+                enforceTextLimit(
+                    text: &ownerName,
+                    newValue: newValue,
+                    limit: CardInputLimits.ownerName,
+                    message: &ownerLimitMessage
+                )
+            }
+            .onChange(of: storeName) { _, newValue in
+                enforceTextLimit(
+                    text: &storeName,
+                    newValue: newValue,
+                    limit: CardInputLimits.storeName,
+                    message: &storeLimitMessage
+                )
+            }
+            .onChange(of: barcodeValue) { _, newValue in
+                enforceBarcodeInput(
+                    text: &barcodeValue,
+                    newValue: newValue,
+                    limit: CardInputLimits.barcode,
+                    previousValue: &previousBarcodeValue,
+                    message: &barcodeLimitMessage
+                )
+            }
+            .onChange(of: pointsText) { _, newValue in
+                enforcePointsInput(
+                    text: &pointsText,
+                    newValue: newValue,
+                    limit: CardInputLimits.pointsDigits,
+                    message: &pointsLimitMessage
+                )
+            }
+            .onAppear {
+                previousBarcodeValue = barcodeValue
+            }
         }
     }
 
     private var isFormValid: Bool {
+        ownerLimitMessage == nil &&
+        storeLimitMessage == nil &&
+        barcodeLimitMessage == nil &&
         !normalizedStoreName.isEmpty &&
-        !normalizedBarcodeValue.isEmpty
+        !normalizedBarcodeValue.isEmpty &&
+        BarcodeGenerator.isValidCode128Input(normalizedBarcodeValue) &&
+        pointsValidationMessage == nil
     }
 
     private var hasDuplicateCard: Bool {
@@ -1483,12 +1749,121 @@ private struct AddCardView: View {
             storeName: normalizedStoreName,
             barcodeValue: normalizedBarcodeValue,
             tag: selectedTag,
+            points: parsedPoints,
             sortOrder: nextSortOrder,
             colorID: selectedColorID
         )
         modelContext.insert(newCard)
         dismiss()
     }
+
+    private var parsedPoints: Int {
+        max(0, Int(pointsText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0)
+    }
+
+    private var barcodeValidationMessage: String? {
+        if let barcodeLimitMessage {
+            return barcodeLimitMessage
+        }
+        if normalizedBarcodeValue.isEmpty {
+            return nil
+        }
+        return BarcodeGenerator.isValidCode128Input(normalizedBarcodeValue)
+            ? nil
+            : "Barcode non valido: usa caratteri standard (ASCII)."
+    }
+
+    private var pointsValidationMessage: String? {
+        if let pointsLimitMessage {
+            return pointsLimitMessage
+        }
+        let normalized = pointsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return nil
+        }
+        guard normalized.allSatisfy(\.isNumber) else {
+            return "Punti non validi: inserisci solo numeri."
+        }
+        if normalized.count > CardInputLimits.pointsDigits {
+            return "Punti: massimo \(CardInputLimits.pointsDigits) cifre."
+        }
+        return nil
+    }
+
+    private func enforceTextLimit(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        message: inout String?
+    ) {
+        let limited = String(newValue.prefix(limit))
+        if limited != newValue {
+            text = limited
+            message = "Hai superato il massimo di \(limit) caratteri."
+            return
+        }
+        if limited.count < limit {
+            message = nil
+        }
+    }
+
+    private func enforcePointsInput(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        message: inout String?
+    ) {
+        let digitsOnly = newValue.filter(\.isNumber)
+        let limited = String(digitsOnly.prefix(limit))
+        if limited != newValue {
+            text = limited
+            message = digitsOnly.count > limit
+                ? "Hai superato il massimo di \(limit) caratteri."
+                : "Sono consentiti solo numeri."
+            return
+        }
+        if limited.count < limit {
+            message = nil
+        }
+    }
+
+    private func enforceBarcodeInput(
+        text: inout String,
+        newValue: String,
+        limit: Int,
+        previousValue: inout String,
+        message: inout String?
+    ) {
+        let oldValue = previousValue
+        let oldTrimmed = oldValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oldWasInvalid = !oldTrimmed.isEmpty && !BarcodeGenerator.isValidCode128Input(oldTrimmed)
+
+        if oldWasInvalid && newValue.count > oldValue.count {
+            text = oldValue
+            message = "Barcode non valido: correggilo prima di aggiungere altri caratteri."
+            return
+        }
+
+        let limited = String(newValue.prefix(limit))
+        if limited != newValue {
+            text = limited
+            previousValue = limited
+            message = "Hai superato il massimo di \(limit) caratteri."
+            return
+        }
+
+        previousValue = limited
+        if limited.count < limit {
+            message = nil
+        }
+    }
+}
+
+private enum CardInputLimits {
+    static let ownerName = 40
+    static let storeName = 20
+    static let barcode = 128
+    static let pointsDigits = 10
 }
 
 private struct EmptyStateView: View {
@@ -1577,22 +1952,33 @@ private struct StyledTextField: View {
     @Binding var text: String
     let icon: String
     var monospaced = false
+    var helperMessage: String? = nil
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(Color(red: 0.16, green: 0.49, blue: 0.53))
-                .frame(width: 18)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .foregroundStyle(Color(red: 0.16, green: 0.49, blue: 0.53))
+                    .frame(width: 18)
 
-            TextField(title, text: $text)
-                .font(monospaced ? .body.monospaced() : .body)
+                TextField(title, text: $text)
+                    .font(monospaced ? .body.monospaced() : .body)
+            }
+            .padding(14)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.45), lineWidth: 1)
+            )
+
+            if let helperMessage {
+                Text(helperMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
         }
-        .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.45), lineWidth: 1)
-        )
     }
 }
 
@@ -1640,8 +2026,24 @@ private enum AppTheme {
 }
 
 private enum BarcodeGenerator {
+    static func isValidCode128Input(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return false
+        }
+
+        return trimmed.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && scalar.value >= 32 && scalar.value <= 126
+        }
+    }
+
     static func makeCode128(from value: String) -> UIImage? {
-        let data = Data(value.utf8)
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidCode128Input(trimmed) else {
+            return nil
+        }
+
+        let data = Data(trimmed.utf8)
         let filter = CIFilter.code128BarcodeGenerator()
         filter.message = data
 
