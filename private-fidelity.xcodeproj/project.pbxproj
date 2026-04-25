@@ -7,11 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		287F800A2F9CA9C900A43069 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */; };
+		287F800B2F9CA9C900A43069 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80052F9CA9C900A43069 /* ContentView.swift */; };
+		287F800C2F9CA9C900A43069 /* DemoCardData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80062F9CA9C900A43069 /* DemoCardData.swift */; };
+		287F800D2F9CA9C900A43069 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80072F9CA9C900A43069 /* Item.swift */; };
 		287F80102F9CD1A000A43069 /* CardValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F800F2F9CD19F00A43069 /* CardValidation.swift */; };
+		287F80122F9CE1E400A43069 /* CardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80112F9CE1E400A43069 /* CardDetailView.swift */; };
+		287F80142F9CE20800A43069 /* EditCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80132F9CE20800A43069 /* EditCardView.swift */; };
+		287F80162F9CE23400A43069 /* AddCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80152F9CE23400A43069 /* AddCardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
+		287F80052F9CA9C900A43069 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		287F80062F9CA9C900A43069 /* DemoCardData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCardData.swift; sourceTree = "<group>"; };
+		287F80072F9CA9C900A43069 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		287F800F2F9CD19F00A43069 /* CardValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardValidation.swift; sourceTree = "<group>"; };
+		287F80112F9CE1E400A43069 /* CardDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDetailView.swift; sourceTree = "<group>"; };
+		287F80132F9CE20800A43069 /* EditCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCardView.swift; sourceTree = "<group>"; };
+		287F80152F9CE23400A43069 /* AddCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCardView.swift; sourceTree = "<group>"; };
 		28E8A7F12F93C4A100A60212 /* fidelify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = fidelify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -34,12 +48,59 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		287F80172F9CE49100A43069 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				287F80152F9CE23400A43069 /* AddCardView.swift */,
+				287F80132F9CE20800A43069 /* EditCardView.swift */,
+				287F80112F9CE1E400A43069 /* CardDetailView.swift */,
+				287F80052F9CA9C900A43069 /* ContentView.swift */,
+				287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		287F80182F9CE49100A43069 /* Validation */ = {
+			isa = PBXGroup;
+			children = (
+				287F800F2F9CD19F00A43069 /* CardValidation.swift */,
+			);
+			path = Validation;
+			sourceTree = "<group>";
+		};
+		287F80192F9CE49100A43069 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		287F801A2F9CE49100A43069 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				287F80072F9CA9C900A43069 /* Item.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		287F801B2F9CE5CD00A43069 /* SeedData */ = {
+			isa = PBXGroup;
+			children = (
+				287F80062F9CA9C900A43069 /* DemoCardData.swift */,
+			);
+			path = SeedData;
+			sourceTree = "<group>";
+		};
 		28E8A7E82F93C4A100A60212 = {
 			isa = PBXGroup;
 			children = (
 				28E8A7F32F93C4A100A60212 /* private-fidelity */,
 				28E8A7F22F93C4A100A60212 /* Products */,
-				287F800F2F9CD19F00A43069 /* CardValidation.swift */,
+				287F80172F9CE49100A43069 /* Views */,
+				287F80182F9CE49100A43069 /* Validation */,
+				287F80192F9CE49100A43069 /* Utils */,
+				287F801A2F9CE49100A43069 /* Models */,
+				287F801B2F9CE5CD00A43069 /* SeedData */,
 			);
 			sourceTree = "<group>";
 		};
@@ -125,7 +186,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				287F80142F9CE20800A43069 /* EditCardView.swift in Sources */,
+				287F800A2F9CA9C900A43069 /* BarcodeScannerView.swift in Sources */,
+				287F800B2F9CA9C900A43069 /* ContentView.swift in Sources */,
 				287F80102F9CD1A000A43069 /* CardValidation.swift in Sources */,
+				287F800C2F9CA9C900A43069 /* DemoCardData.swift in Sources */,
+				287F800D2F9CA9C900A43069 /* Item.swift in Sources */,
+				287F80122F9CE1E400A43069 /* CardDetailView.swift in Sources */,
+				287F80162F9CE23400A43069 /* AddCardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
