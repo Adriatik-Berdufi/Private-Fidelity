@@ -75,6 +75,7 @@ struct PrivateFidelityApp: App {
                     storeName: card.storeName,
                     barcodeValue: card.barcodeValue,
                     tag: card.tag,
+                    points: card.points,
                     sortOrder: index,
                     favoriteOrder: index,
                     isFavorite: index < 6

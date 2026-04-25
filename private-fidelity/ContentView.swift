@@ -659,12 +659,99 @@ private struct CardDetailView: View {
     @State private var isShowingEditSheet = false
     @State private var shareSheetItem: ShareSheetItem?
     @State private var shareErrorMessage: String?
+    @State private var isShowingAdjustPointsAlert = false
+    @State private var pointsInputText = ""
+    @State private var pointsAdjustmentMode: PointsAdjustmentMode = .add
 
     var body: some View {
         let tint = AppTheme.tint(for: card)
 
         ScrollView {
-            VStack(spacing: 80) {
+            VStack(spacing: 120) {
+                VStack(spacing: 8) {
+                    VStack(spacing: 8) {
+                        if let barcodeImage = BarcodeGenerator.makeCode128(from: card.barcodeValue) {
+                            VStack(spacing: 0) {
+                                
+                                Text(card.storeName)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.black.opacity(0.65))
+                                 
+
+                                Image(uiImage: barcodeImage)
+                                    .interpolation(.none)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: .infinity, maxHeight: 240)
+
+                                Text(card.barcodeValue)
+                                    .font(.system(size: 13, design: .monospaced))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.black.opacity(0.75))
+                                    .padding(.top,-14)
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        } else {
+                            Text("Impossibile generare il barcode")
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                    )
+
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Punti accumulati")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text("\(currentPoints)")
+                                .font(.title.weight(.bold))
+                                .fontDesign(.rounded)
+                                .foregroundStyle(.primary)
+                        }
+                        Spacer()
+
+                        HStack(spacing: 10) {
+                            Button {
+                                pointsInputText = ""
+                                pointsAdjustmentMode = .subtract
+                                isShowingAdjustPointsAlert = true
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 28, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.orange)
+
+                            Button {
+                                pointsInputText = ""
+                                pointsAdjustmentMode = .add
+                                isShowingAdjustPointsAlert = true
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 28, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.tint)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                    )
+                }
+
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(card.storeName.uppercased())
@@ -697,7 +784,6 @@ private struct CardDetailView: View {
                             .padding(.vertical, 5)
                             .background(.white.opacity(0.16), in: Capsule())
                     }
-
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -710,44 +796,6 @@ private struct CardDetailView: View {
                     in: RoundedRectangle(cornerRadius: 24, style: .continuous)
                 )
                 .shadow(color: tint.opacity(0.25), radius: 18, x: 0, y: 10)
-
-                VStack(spacing: 14) {
-                    if let barcodeImage = BarcodeGenerator.makeCode128(from: card.barcodeValue) {
-                        VStack(spacing: 0) {
-                            
-                            Text(card.storeName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.black.opacity(0.65))
-                             
-
-                            Image(uiImage: barcodeImage)
-                                .interpolation(.none)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 360, maxHeight: 200)
-
-                            Text(card.barcodeValue)
-                                .font(.system(size: 13, design: .monospaced))
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.black.opacity(0.75))
-                                .padding(.top,-14)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    } else {
-                        Text("Impossibile generare il barcode")
-                            .foregroundStyle(.red)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                )
             }
             .padding()
         }
@@ -790,6 +838,17 @@ private struct CardDetailView: View {
         .sheet(item: $shareSheetItem) { item in
             ActivityView(activityItems: [item.url])
         }
+        .alert(pointsAdjustmentMode.alertTitle, isPresented: $isShowingAdjustPointsAlert) {
+            TextField(pointsAdjustmentMode.textFieldTitle, text: $pointsInputText)
+                .keyboardType(.numberPad)
+            Button("Annulla", role: .cancel) {}
+            Button(pointsAdjustmentMode.confirmButtonTitle) {
+                adjustPoints()
+            }
+            .disabled(parsedPointsInput == nil)
+        } message: {
+            Text(pointsAdjustmentMode.message)
+        }
         .alert("Errore condivisione", isPresented: shareErrorIsPresented) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -811,6 +870,78 @@ private struct CardDetailView: View {
             try modelContext.save()
         } catch {
             assertionFailure("Errore salvataggio preferiti: \(error.localizedDescription)")
+        }
+    }
+
+    private var currentPoints: Int {
+        card.points ?? 0
+    }
+
+    private var parsedPointsInput: Int? {
+        guard let value = Int(pointsInputText.trimmingCharacters(in: .whitespacesAndNewlines)),
+              value > 0 else {
+            return nil
+        }
+        return value
+    }
+
+    private func adjustPoints() {
+        guard let input = parsedPointsInput else {
+            return
+        }
+
+        switch pointsAdjustmentMode {
+        case .add:
+            card.points = currentPoints + input
+        case .subtract:
+            card.points = max(0, currentPoints - input)
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            assertionFailure("Errore salvataggio punti: \(error.localizedDescription)")
+        }
+    }
+
+    private enum PointsAdjustmentMode {
+        case add
+        case subtract
+
+        var alertTitle: String {
+            switch self {
+            case .add:
+                return "Aggiungi punti"
+            case .subtract:
+                return "Rimuovi punti"
+            }
+        }
+
+        var textFieldTitle: String {
+            switch self {
+            case .add:
+                return "Punti da aggiungere"
+            case .subtract:
+                return "Punti da rimuovere"
+            }
+        }
+
+        var confirmButtonTitle: String {
+            switch self {
+            case .add:
+                return "Aggiungi"
+            case .subtract:
+                return "Rimuovi"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .add:
+                return "Inserisci quanti punti vuoi aggiungere."
+            case .subtract:
+                return "Inserisci quanti punti vuoi rimuovere."
+            }
         }
     }
 
