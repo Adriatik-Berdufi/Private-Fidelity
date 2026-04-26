@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		285377472F9DFEBF00C62D04 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285377462F9DFEBF00C62D04 /* SettingsView.swift */; };
 		287F800A2F9CA9C900A43069 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */; };
 		287F800B2F9CA9C900A43069 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80052F9CA9C900A43069 /* ContentView.swift */; };
 		287F800C2F9CA9C900A43069 /* DemoCardData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287F80062F9CA9C900A43069 /* DemoCardData.swift */; };
@@ -19,6 +20,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		285377462F9DFEBF00C62D04 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		287F80052F9CA9C900A43069 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		287F80062F9CA9C900A43069 /* DemoCardData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCardData.swift; sourceTree = "<group>"; };
@@ -58,6 +60,7 @@
 				287F80112F9CE1E400A43069 /* CardDetailView.swift */,
 				287F80052F9CA9C900A43069 /* ContentView.swift */,
 				287F80042F9CA9C900A43069 /* BarcodeScannerView.swift */,
+				285377462F9DFEBF00C62D04 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -195,6 +198,7 @@
 				287F800B2F9CA9C900A43069 /* ContentView.swift in Sources */,
 				287F80102F9CD1A000A43069 /* CardValidation.swift in Sources */,
 				287F800C2F9CA9C900A43069 /* DemoCardData.swift in Sources */,
+				285377472F9DFEBF00C62D04 /* SettingsView.swift in Sources */,
 				287F800D2F9CA9C900A43069 /* Item.swift in Sources */,
 				287F80122F9CE1E400A43069 /* CardDetailView.swift in Sources */,
 				287F80162F9CE23400A43069 /* AddCardView.swift in Sources */,

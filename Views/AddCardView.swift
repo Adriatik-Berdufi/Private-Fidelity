@@ -1,10 +1,21 @@
 import SwiftUI
 import SwiftData
 
+struct PendingCardDraft: Identifiable {
+    let id = UUID()
+    let ownerName: String
+    let storeName: String
+    let barcodeValue: String
+    let points: Int
+    let tag: String
+    let colorID: String
+}
+
 struct AddCardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var existingCards: [Item]
+    @AppStorage("defaultOwnerName") private var defaultOwnerName = ""
 
     @State private var ownerName = ""
     @State private var storeName = ""
@@ -15,11 +26,42 @@ struct AddCardView: View {
     @State private var isShowingScanner = false
     @State private var scannerErrorMessage: String?
     @State private var isShowingDuplicateAlert = false
+    @State private var pendingDuplicateCard: Item?
+    @State private var duplicateCardToEdit: Item?
+    @State private var shouldDismissAfterDuplicateEdit = false
     @State private var ownerLimitMessage: String?
     @State private var storeLimitMessage: String?
     @State private var barcodeLimitMessage: String?
     @State private var pointsLimitMessage: String?
     @State private var previousBarcodeValue = ""
+    @State private var isShowingPendingDuplicateAlert = false
+
+    private enum SaveMode {
+        case immediate
+        case deferred((PendingCardDraft) -> Void)
+    }
+
+    private let blockedBarcodes: Set<String>
+    private let saveMode: SaveMode
+
+    private var isDeferredMode: Bool {
+        if case .deferred = saveMode {
+            return true
+        }
+        return false
+    }
+
+    init() {
+        self.blockedBarcodes = []
+        self.saveMode = .immediate
+    }
+
+    init(blockedBarcodes: Set<String>, onSaveDraft: @escaping (PendingCardDraft) -> Void) {
+        self.blockedBarcodes = Set(
+            blockedBarcodes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        )
+        self.saveMode = .deferred(onSaveDraft)
+    }
 
     var body: some View {
         NavigationStack {
@@ -131,8 +173,16 @@ struct AddCardView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
                         guard isFormValid else { return }
-                        if hasDuplicateCard {
-                            isShowingDuplicateAlert = true
+                        if let duplicateCard = duplicateCard {
+                            if isDeferredMode {
+                                pendingDuplicateCard = nil
+                                isShowingPendingDuplicateAlert = true
+                            } else {
+                                pendingDuplicateCard = duplicateCard
+                                isShowingDuplicateAlert = true
+                            }
+                        } else if hasPendingDuplicate {
+                            isShowingPendingDuplicateAlert = true
                         } else {
                             saveCard()
                         }
@@ -145,13 +195,35 @@ struct AddCardView: View {
             } message: {
                 Text(scannerErrorMessage ?? "")
             }
-            .alert("Card duplicata", isPresented: $isShowingDuplicateAlert) {
-                Button("Annulla", role: .cancel) {}
-                Button("Aggiungi comunque") {
-                    saveCard()
+            .alert("Card già presente", isPresented: $isShowingDuplicateAlert) {
+                Button("No", role: .cancel) {
+                    pendingDuplicateCard = nil
+                    shouldDismissAfterDuplicateEdit = false
+                }
+                Button("Sì") {
+                    duplicateCardToEdit = pendingDuplicateCard
+                    pendingDuplicateCard = nil
+                    shouldDismissAfterDuplicateEdit = true
                 }
             } message: {
-                Text("Esiste già una card con lo stesso codice a barre.")
+                Text("Questo codice QR è già presente. Vuoi modificare quella card?")
+            }
+            .alert("Card già presente", isPresented: $isShowingPendingDuplicateAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                if isDeferredMode {
+                    Text("In Impostazioni non puoi salvare o modificare subito una card duplicata. Usa la penna in Modifica card e poi premi Salva in Impostazioni.")
+                } else {
+                    Text("Questo codice QR è già stato aggiunto nelle modifiche in attesa di Salva.")
+                }
+            }
+            .sheet(item: $duplicateCardToEdit, onDismiss: {
+                if shouldDismissAfterDuplicateEdit {
+                    shouldDismissAfterDuplicateEdit = false
+                    dismiss()
+                }
+            }) { card in
+                EditCardView(card: card)
             }
             .sheet(isPresented: $isShowingScanner) {
                 NavigationStack {
@@ -209,6 +281,9 @@ struct AddCardView: View {
             }
             .onAppear {
                 previousBarcodeValue = barcodeValue
+                if ownerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    ownerName = String(defaultOwnerName.prefix(CardInputLimits.ownerName))
+                }
             }
         }
     }
@@ -223,10 +298,17 @@ struct AddCardView: View {
         pointsValidationMessage == nil
     }
 
-    private var hasDuplicateCard: Bool {
-        existingCards.contains {
+    private var duplicateCard: Item? {
+        existingCards.first {
             $0.barcodeValue.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedBarcodeValue
         }
+    }
+
+    private var hasPendingDuplicate: Bool {
+        guard duplicateCard == nil else {
+            return false
+        }
+        return blockedBarcodes.contains(normalizedBarcodeValue)
     }
 
     private var normalizedStoreName: String {
@@ -249,19 +331,33 @@ struct AddCardView: View {
     }
 
     private func saveCard() {
-        let nextSortOrder = (existingCards.map(\.sortOrder).max() ?? -1) + 1
-
-        let newCard = Item(
+        let draft = PendingCardDraft(
             ownerName: ownerName.trimmingCharacters(in: .whitespacesAndNewlines),
             storeName: normalizedStoreName,
             barcodeValue: normalizedBarcodeValue,
-            tag: selectedTag,
             points: parsedPoints,
-            sortOrder: nextSortOrder,
+            tag: selectedTag,
             colorID: selectedColorID
         )
-        modelContext.insert(newCard)
-        dismiss()
+
+        switch saveMode {
+        case .deferred(let onSaveDraft):
+            onSaveDraft(draft)
+            dismiss()
+        case .immediate:
+            let nextSortOrder = (existingCards.map(\.sortOrder).max() ?? -1) + 1
+            let newCard = Item(
+                ownerName: draft.ownerName,
+                storeName: draft.storeName,
+                barcodeValue: draft.barcodeValue,
+                tag: draft.tag,
+                points: draft.points,
+                sortOrder: nextSortOrder,
+                colorID: draft.colorID
+            )
+            modelContext.insert(newCard)
+            dismiss()
+        }
     }
 
     private var parsedPoints: Int {

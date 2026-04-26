@@ -123,6 +123,30 @@ enum CardInputValidator {
             : "Barcode non valido: usa caratteri standard (ASCII)."
     }
 
+    static func normalizedTag(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func customTagValidationMessage(
+        tagText: String,
+        limitMessage: String?,
+        existingTags: [String]
+    ) -> String? {
+        if let limitMessage {
+            return limitMessage
+        }
+
+        let normalized = normalizedTag(tagText)
+        if normalized.isEmpty {
+            return nil
+        }
+
+        let exists = existingTags.contains {
+            normalizedTag($0).caseInsensitiveCompare(normalized) == .orderedSame
+        }
+        return exists ? "Tag già presente." : nil
+    }
+
     static func isValidCode128Input(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {

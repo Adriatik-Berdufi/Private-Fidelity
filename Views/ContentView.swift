@@ -18,9 +18,9 @@ struct ContentView: View {
     @State private var isPresentingAddCard = false
     @State private var isPresentingImportPicker = false
     @State private var isPresentingExportPicker = false
+    @State private var isPresentingSettings = false
     @State private var draggedCard: Item?
     @State private var selectedCard: Item?
-    @State private var isShowingDeleteAllAlert = false
     @State private var importAlertMessage: String?
     @State private var exportAlertMessage: String?
     @State private var shareSheetItem: ShareSheetItem?
@@ -97,6 +97,10 @@ struct ContentView: View {
                         }
 
                         Menu {
+                            Button("Impostazioni", systemImage: "gearshape") {
+                                isPresentingSettings = true
+                            }
+
                             Button("Aggiungi", systemImage: "plus.circle") {
                                 isPresentingAddCard = true
                             }
@@ -107,12 +111,6 @@ struct ContentView: View {
 
                             Button("Esporta", systemImage: "square.and.arrow.up") {
                                 isPresentingExportPicker = true
-                            }
-
-                            if !cards.isEmpty {
-                                Button("Elimina Tutte", systemImage: "trash", role: .destructive) {
-                                    isShowingDeleteAllAlert = true
-                                }
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
@@ -128,6 +126,9 @@ struct ContentView: View {
                 ExportCardsView(cards: cards) { selectedCards in
                     exportCards(selectedCards)
                 }
+            }
+            .sheet(isPresented: $isPresentingSettings) {
+                SettingsView()
             }
             .fileImporter(
                 isPresented: $isPresentingImportPicker,
@@ -147,14 +148,6 @@ struct ContentView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "Cerca negozio"
             )
-            .alert("Eliminare tutte le card?", isPresented: $isShowingDeleteAllAlert) {
-                Button("Annulla", role: .cancel) {}
-                Button("Elimina Tutte", role: .destructive) {
-                    deleteAllCards()
-                }
-            } message: {
-                Text("Questa azione rimuove tutte le card salvate sul dispositivo.")
-            }
             .alert("Importazione", isPresented: importAlertIsPresented) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -304,14 +297,6 @@ struct ContentView: View {
                 draggedCard = card
                 return NSItemProvider(object: NSString(string: card.barcodeValue))
             }
-    }
-
-    private func deleteAllCards() {
-        withAnimation {
-            for card in cards {
-                modelContext.delete(card)
-            }
-        }
     }
 
     private var importAlertIsPresented: Binding<Bool> {
@@ -942,8 +927,10 @@ private struct EmptyStateView: View {
 }
 
 enum CardTagCatalog {
-    static let all: [String] = [
-        "",
+    private static let customTagsKey = "customStoreTags"
+    private static let hiddenBuiltInTagsKey = "hiddenBuiltInStoreTags"
+    private static let customTagIconPrefix = "customTagIcon::"
+    private static let builtInTags: [String] = [
         "Alimentari",
         "Vestiti",
         "Sport",
@@ -953,13 +940,135 @@ enum CardTagCatalog {
         "Libri",
         "Altro"
     ]
+    static let customIconOptions: [String] = [
+        "tag.fill",
+        "cart.fill",
+        "tshirt.fill",
+        "figure.run",
+        "desktopcomputer",
+        "house.fill",
+        "sparkles",
+        "book.fill",
+        "fork.knife",
+        "cup.and.saucer.fill",
+        "gift.fill",
+        "heart.fill"
+    ]
+
+    static var all: [String] {
+        availableTags(
+            customTags: customTags(),
+            hiddenBuiltInTags: hiddenBuiltInTags()
+        )
+    }
+
+    static func availableTags(customTags: [String], hiddenBuiltInTags: [String]) -> [String] {
+        var seen = Set<String>()
+        var result = [""]
+        let hiddenKeys = Set(hiddenBuiltInTags.map { normalizedTag($0).lowercased() })
+
+        for tag in builtInTags where !hiddenKeys.contains(tag.lowercased()) {
+            let normalized = normalizedTag(tag)
+            guard !normalized.isEmpty else {
+                continue
+            }
+            let key = normalized.lowercased()
+            guard seen.insert(key).inserted else {
+                continue
+            }
+            result.append(normalized)
+        }
+
+        for tag in sanitizeCustomTags(customTags) {
+            let normalized = normalizedTag(tag)
+            guard !normalized.isEmpty else {
+                continue
+            }
+            let key = normalized.lowercased()
+            guard seen.insert(key).inserted else {
+                continue
+            }
+            result.append(normalized)
+        }
+
+        return result
+    }
+
+    static func customTags() -> [String] {
+        let storedTags = UserDefaults.standard.array(forKey: customTagsKey) as? [String] ?? []
+        return sanitizeCustomTags(storedTags)
+    }
+
+    static func saveCustomTags(_ tags: [String]) {
+        let sanitized = sanitizeCustomTags(tags)
+        UserDefaults.standard.set(sanitized, forKey: customTagsKey)
+        removeOrphanCustomTagIcons(validCustomTags: sanitized)
+    }
+
+    static func hiddenBuiltInTags() -> [String] {
+        let stored = UserDefaults.standard.array(forKey: hiddenBuiltInTagsKey) as? [String] ?? []
+        return sanitizeHiddenBuiltInTags(stored)
+    }
+
+    static func saveHiddenBuiltInTags(_ tags: [String]) {
+        UserDefaults.standard.set(sanitizeHiddenBuiltInTags(tags), forKey: hiddenBuiltInTagsKey)
+    }
+
+    static func normalizedTag(_ value: String) -> String {
+        CardInputValidator.normalizedTag(value)
+    }
+
+    static func containsTag(named value: String) -> Bool {
+        let normalized = normalizedTag(value)
+        guard !normalized.isEmpty else {
+            return false
+        }
+        return all.contains { $0.lowercased() == normalized.lowercased() }
+    }
+
+    static func isBuiltInTag(_ value: String) -> Bool {
+        let normalized = normalizedTag(value).lowercased()
+        return builtInTags.contains { $0.lowercased() == normalized }
+    }
+
+    static func customIconName(for tag: String) -> String? {
+        let normalized = normalizedTag(tag)
+        guard !normalized.isEmpty else {
+            return nil
+        }
+        let key = customTagIconPrefix + normalized.lowercased()
+        return UserDefaults.standard.string(forKey: key)
+    }
+
+    static func saveCustomIcon(_ iconName: String, for tag: String) {
+        let normalized = normalizedTag(tag)
+        guard !normalized.isEmpty else {
+            return
+        }
+        let key = customTagIconPrefix + normalized.lowercased()
+        UserDefaults.standard.set(iconName, forKey: key)
+    }
+
+    static func removeCustomIcon(for tag: String) {
+        let normalized = normalizedTag(tag)
+        guard !normalized.isEmpty else {
+            return
+        }
+        let key = customTagIconPrefix + normalized.lowercased()
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 
     static func displayName(for value: String) -> String {
         value.isEmpty ? "Nessuno" : value
     }
 
     static func iconName(for value: String?) -> String {
-        switch value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let customIcon = customIconName(for: normalized) {
+            return customIcon
+        }
+
+        switch normalized.lowercased() {
         case "alimentari":
             return "cart.fill"
         case "vestiti":
@@ -978,6 +1087,59 @@ enum CardTagCatalog {
             return "tag.fill"
         default:
             return "building.2.fill"
+        }
+    }
+
+    private static func sanitizeCustomTags(_ tags: [String]) -> [String] {
+        var seen = Set<String>()
+        var cleaned: [String] = []
+        let builtInKeys = Set(builtInTags.map { $0.lowercased() })
+
+        for rawTag in tags {
+            let normalized = normalizedTag(rawTag)
+            guard !normalized.isEmpty else {
+                continue
+            }
+            let key = normalized.lowercased()
+            guard !builtInKeys.contains(key), seen.insert(key).inserted else {
+                continue
+            }
+            cleaned.append(normalized)
+        }
+
+        return cleaned
+    }
+
+    private static func sanitizeHiddenBuiltInTags(_ tags: [String]) -> [String] {
+        let builtInKeys = Set(builtInTags.map { $0.lowercased() })
+        var seen = Set<String>()
+        var cleaned: [String] = []
+
+        for rawTag in tags {
+            let normalized = normalizedTag(rawTag)
+            guard !normalized.isEmpty else {
+                continue
+            }
+            let key = normalized.lowercased()
+            guard builtInKeys.contains(key), seen.insert(key).inserted else {
+                continue
+            }
+            cleaned.append(normalized)
+        }
+
+        return cleaned
+    }
+
+    private static func normalizeTagValue(_ value: String) -> String {
+        CardInputValidator.normalizedTag(value)
+    }
+
+    private static func removeOrphanCustomTagIcons(validCustomTags: [String]) {
+        let validKeys = Set(validCustomTags.map { customTagIconPrefix + $0.lowercased() })
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix(customTagIconPrefix) {
+            if !validKeys.contains(key) {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
     }
 }
